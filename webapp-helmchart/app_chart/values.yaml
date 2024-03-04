@@ -1,0 +1,14 @@
+app1:
+  app_name: weather-app
+  replicaCount: 4
+  containerPort: 8080
+
+  image:
+    repository: merongelbard/weather-app-gunicorn
+    tag: 
+    pullPolicy: Always
+
+  service:
+      type: ClusterIP
+      port: 81
+

@@ -1,0 +1,51 @@
+pipeline {
+
+    agent {
+        label 'builder'
+    }
+    environment {
+        HELM_CHART = 'weather-app'
+        DOCKER_REPO = 'merongelbard'
+    }
+
+    stages {
+        stage('Login to registry') {
+            steps {
+            withCredentials([string(credentialsId: 'dockerhub-token', variable: 'TOKEN')]) {
+                    sh "echo ${TOKEN} | helm registry login registry-1.docker.io -u ${DOCKER_REPO} --password-stdin"
+                }
+            }
+            }
+
+        stage('Repackage and push') {
+            steps {
+                script {
+                    sh 'sudo rm ./*.tgz || true'
+                    sh "bash chart_version_inc.sh"
+                    sh 'helm package ./app_chart'
+                    sh "helm push ./*.tgz oci://registry-1.docker.io/${DOCKER_REPO}"
+                    }
+            }
+        }
+
+        stage('Deploy / Update deployment') {
+            steps {
+            script {
+                withCredentials([file(credentialsId: 'kubectl_config', variable: 'config_file')]) {
+                    sh "helm --kubeconfig ${config_file} upgrade --install weather-app ./*.tgz"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+    }
+    success {
+        slackSend(color: '#36a64f', message: 'App CD pipeline succeeded!')
+    }
+    failure {
+    slackSend(color: '#36a64f', message: 'App CD pipeline failed!')
+    }
+    }
+}

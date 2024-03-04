@@ -1,0 +1,14 @@
+*
+!*.md
+!*.sh
+!*.py
+!*/
+!*.yaml
+!*.yml
+!.gitignore
+!jenkinsfile
+!pre-commit
+!.chart_version
+.idea
+.DS_Store
+

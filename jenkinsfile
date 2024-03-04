@@ -1,0 +1,152 @@
+pipeline {
+
+    agent {
+        label 'builder'
+    }
+
+    environment {
+        IMG_NAME = 'weather-app-gunicorn'
+        DOCKER_REPO = 'merongelbard'
+        HELM_REPO = 'merongelbard'
+        HELM_CHART = 'weather-app'
+        GITLAB_HOST = 'http://10.0.11.0'
+        GIT_PROJECT_ID = '1'
+        BUILD_ID = "${currentBuild.number}"
+        BUILD_TIME = "${currentBuild.startTimeInMillis}"
+        JENKINS_HOME = "/jenkins"
+    }
+
+    stages {
+            stage('Docker build and run app') {
+                when {not {branch 'main'}}
+                steps {
+                    withCredentials([string(credentialsId: 'dockerhub-token', variable: 'TOKEN')])
+                        {
+                        script {
+                            sh "echo ${TOKEN} | sudo docker login -u ${DOCKER_REPO} --password-stdin"
+                            sh "docker build  -t ${DOCKER_REPO}/${IMG_NAME}:new -f ./web_app/Dockerfile ./web_app"
+                            sh "docker run -d --network host ${DOCKER_REPO}/${IMG_NAME}:new"
+                            }
+                        }
+                    }
+                post {
+                    always {sh "echo 'Log for build pipeline #${BUILD_ID}' >> pipeline_log.log"}
+                    success {sh "echo 'New & updated container successfully built & runing.' >> pipeline_log.log"}
+                    failure {sh "echo 'Failed to build or run new container.' >> pipeline_log.log"}
+                    }
+                }
+            stage('Regresion test container') {
+                when {not {branch 'main'}}
+                steps {
+                    sh 'docker build -t app_tester -f ./testing/Dockerfile ./testing'
+                    sh 'docker run --rm --network host app_tester' 
+                    }
+                post {
+                    success {sh "echo 'New build successfully passed all tests.' >> pipeline_log.log"}
+                    failure {sh "echo 'New build has failed some tests.' >> pipeline_log.log"}
+                    }    
+                }
+            
+            stage('Run versioning script') {
+                when {not {branch 'main'}}
+                steps {
+                    script {
+                        def branchName = env.BRANCH_NAME.toLowerCase()
+                        if (branchName.contains('fix')) {
+                            sh "bash app_version_inc.sh patch"
+                        } else if (branchName.contains('feature')) {
+                            sh "bash app_version_inc.sh minor"
+                        }
+                    }
+                }
+                post {
+                    always {sh "echo 'new version:' >> pipeline_log.log && cat .app_version >> pipeline_log.log"}
+                    }
+            }
+            
+            stage('Push to Dockerhub') {
+                when {not {branch 'main'}}
+                steps {
+                    withCredentials([string(credentialsId: 'dockerhub-token', variable: 'TOKEN')]) {
+                        script {
+                            TAG = readFile('.app_version').trim()
+                            sh "sudo docker tag ${DOCKER_REPO}/${IMG_NAME}:new ${DOCKER_REPO}/${IMG_NAME}:${TAG}"
+                            sh "sudo docker tag ${DOCKER_REPO}/${IMG_NAME}:new ${DOCKER_REPO}/${IMG_NAME}:latest"
+                            sh "sudo docker push ${DOCKER_REPO}/${IMG_NAME}:${TAG}"
+                            sh "sudo docker push ${DOCKER_REPO}/${IMG_NAME}:latest"
+                            }
+                        }
+                    }
+                post {
+                    success {sh "echo 'New image pushed to Dockerhub repo.' >> pipeline_log.log"}
+                    failure {sh "echo 'Failed to push new image to Dockerhub.' >> pipeline_log.log"}
+                    }
+                }
+            
+            stage('Create merge request') {
+                when {not {branch 'main'}}
+                steps {
+                    withCredentials([string(credentialsId: 'merge-request-token', variable: 'TOKEN')]) {
+                        script {
+                            def commitMsg = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+                            sh "curl --request POST \
+                                --header 'PRIVATE-TOKEN: ${TOKEN}' \
+                                --data-urlencode 'source_branch=${env.BRANCH_NAME}' \
+                                --data-urlencode 'target_branch=main' \
+                                --data-urlencode 'title=MR-${commitMsg}' \
+                                --data-urlencode 'description=${commitMsg}' \
+                                '${GITLAB_HOST}/api/v4/projects/${GIT_PROJECT_ID}/merge_requests'"
+                            }
+                        }
+                    }
+                post {
+                    success {sh "echo 'Merge request created successfully.' >> pipeline_log.log"}
+                    failure {sh "echo 'Failed to create merge request' >> pipeline_log.log"}
+                }
+                }
+            
+            stage('Update K8S cluster') {
+                when {branch 'main'}
+                steps {
+                    withCredentials([file(credentialsId: 'kubectl_config', variable: 'config_file'), \
+                    string(credentialsId: 'dockerhub-token', variable: 'TOKEN')]) {
+                        script {
+                            sh "./pre-commit"
+                            TAG = readFile('.app_version').trim()
+                            sh "echo ${TOKEN} | helm registry login registry-1.docker.io -u ${HELM_REPO} --password-stdin"
+                            sh "helm --kubeconfig ${config_file} upgrade --install weather-app \
+                            oci://docker.io/${HELM_REPO}/${HELM_CHART} --set app1.image.tag=${TAG}"
+                            }
+                        }
+                    }
+                post {
+                    always {sh "echo 'Log for deployment pipeline #${BUILD_ID}' >> pipeline_log.log"}
+                    success {sh "echo 'Successfully deployed version ${TAG} to cluster.' >> pipeline_log.log"}
+                    failure {sh "echo 'Failed to deploy version ${TAG} to cluster.' >> pipeline_log.log"}
+                    }
+                }
+            }
+    post {
+        always {
+            script {
+                sh 'docker kill $(docker ps -q) || true'
+                sh 'yes | docker container prune'
+                sh 'docker image rm --force $(docker image ls -q) || true'
+                sh "mkdir ${JENKINS_HOME}/build-logs || true"
+                sh "mv pipeline_log.log ${JENKINS_HOME}/build-logs/${BUILD_ID}-pipeline_log.log"
+                LOG = readFile("${JENKINS_HOME}/build-logs/${BUILD_ID}-pipeline_log.log").trim()
+                cleanWs(deleteDirs: true)
+
+
+            }
+        }
+        success {
+            slackSend(color: '#36a64f', message: 'App CI pipeline succeeded! Log attached.')
+            slackSend(color: '#36a64f', message: "${LOG}")
+        }
+        failure {
+            slackSend(color: '#36a64f', message: 'App CI pipeline failed... Log attached.')
+            slackSend(color: '#36a64f', message: "${LOG}")
+        }
+    }
+}

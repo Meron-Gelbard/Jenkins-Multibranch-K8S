@@ -1,0 +1,27 @@
+*
+!*.md
+!*.sh
+!*.py
+!*/
+!*.csv
+!*.html
+!*.css
+!*.conf
+!*.tf
+!.dockerignore
+!Dockerfile
+!*.yaml
+!*.yml
+!requirements.txt
+!.gitignore
+!jenkinsfile
+!pre-commit
+!.app_version
+!.chart_version
+.idea
+.DS_Store
+
+#Defaults from Pycharm:
+/shelf/
+/workspace.xml
+

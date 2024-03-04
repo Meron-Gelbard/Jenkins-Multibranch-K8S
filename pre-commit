@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Install jq if not installed based on OS:
+if ! command -v jq &> /dev/null; then
+
+    if [ -x "$(command -v apt-get)" ]; then
+        sudo apt-get install -y jq
+    elif [ -x "$(command -v yum)" ]; then
+        sudo yum install -y jq
+    elif [ -x "$(command -v brew)" ]; then
+        brew install jq
+    else
+        echo "Unsupported package manager. Please install jq manually."
+        exit 1
+    fi
+fi
+
+# Set the Docker Hub repository name
+repository="merongelbard/weather-app-gunicorn"
+
+# Get the tags from the Docker Hub API
+# Get the tags from the Docker Hub API
+tags=$(curl -s "https://hub.docker.com/v2/repositories/$repository/tags/" | jq -r '.results[].name' | grep -v 'latest' | sort -V)
+
+# Get the last tag that is not "latest"
+last_non_latest_tag=$(echo "$tags" | tail -n 1)
+
+if [ -z "$last_non_latest_tag" ]; then
+    echo "No tags found or all tags are 'latest'."
+    last_non_latest_tag="1.0.0"
+else
+    echo "Last tested version tag: $last_non_latest_tag"
+
+    VERSION_FILE=".app_version"
+
+    echo "$last_non_latest_tag" > "$VERSION_FILE"
+fi
+
+git add .
