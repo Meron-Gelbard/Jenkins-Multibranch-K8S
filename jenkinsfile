@@ -42,7 +42,7 @@ pipeline {
                     withCredentials([string(credentialsId: 'dockerhub-token', variable: 'TOKEN')])
                         {
                         script {
-                            sh "echo $(which docker)"
+                            sh "echo \$(which docker)"
                             sh "echo ${TOKEN} | docker login -u ${DOCKER_REPO} --password-stdin"
                             sh "docker build  -t ${DOCKER_REPO}/${IMG_NAME}:new -f ./web_app/Dockerfile ./web_app"
                             sh "docker run -d --network host ${DOCKER_REPO}/${IMG_NAME}:new"
