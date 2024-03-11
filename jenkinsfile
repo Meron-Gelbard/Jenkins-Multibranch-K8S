@@ -26,9 +26,9 @@ pipeline {
             - name: docker-socket
               mountPath: ./docker.sock
               subPath: docker.sock
-              
+
           volumes:
-          - name: host-volume
+          - name: docker-socket
             hostPath:
               path: /var/run/docker.sock
               type: file
