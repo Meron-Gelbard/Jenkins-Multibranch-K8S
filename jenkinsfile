@@ -15,7 +15,7 @@ pipeline {
             volumes:
             - name: docker-socket
               hostPath:
-                path: unix:///var/run/docker.sock
+                path: /var/run/docker.sock
           - name: deployer
             image: merongelbard/jenkins-agent-docker
             command:
@@ -24,7 +24,7 @@ pipeline {
             volumes:
             - name: docker-socket
               hostPath:
-                path: unix:///var/run/docker.sock
+                path: /var/run/docker.sock
         '''
     }
 
