@@ -8,12 +8,12 @@ pipeline {
         spec:
           containers:
           - name: builder
-            image: jenkins/agent
+            image: jenkins/inbound-agent
             command:
             - cat
             tty: true
           - name: deployer
-            image: jenkins/agent
+            image: jenkins/inbound-agent
             command:
             - cat
             tty: true
@@ -160,9 +160,9 @@ pipeline {
         always {
             node ('controller') {
             script {
-                sh 'docker kill $(docker ps -q) || true'
-                sh 'yes | docker container prune'
-                sh 'docker image rm --force $(docker image ls -q) || true'
+                // sh 'docker kill $(docker ps -q) || true'
+                // sh 'yes | docker container prune'
+                // sh 'docker image rm --force $(docker image ls -q) || true'
                 sh "mkdir ${JENKINS_HOME}/build-logs || true"
                 sh "mv pipeline_log.log ${JENKINS_HOME}/build-logs/${BUILD_ID}-pipeline_log.log"
                 LOG = readFile("${JENKINS_HOME}/build-logs/${BUILD_ID}-pipeline_log.log").trim()
