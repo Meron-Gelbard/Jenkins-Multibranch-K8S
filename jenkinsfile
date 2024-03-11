@@ -49,12 +49,10 @@ pipeline {
                     }
                     }
                 post {
-                    container('builder') {
                     always {sh "echo 'Log for build pipeline #${BUILD_ID}' >> pipeline_log.log"}
                     success {sh "echo 'New & updated container successfully built & runing.' >> pipeline_log.log"}
                     failure {sh "echo 'Failed to build or run new container.' >> pipeline_log.log"}
                     }
-                }
                 }
             stage('Regresion test container') {
                 when {not {branch 'main'}}
@@ -65,11 +63,9 @@ pipeline {
                     }
                     }
                 post {
-                    container('builder') {
                     success {sh "echo 'New build successfully passed all tests.' >> pipeline_log.log"}
                     failure {sh "echo 'New build has failed some tests.' >> pipeline_log.log"}
-                    }  
-                }  
+                    }    
                 }
             
             stage('Run versioning script') {
@@ -87,10 +83,8 @@ pipeline {
                 }
                 }
                 post {
-                    container('builder') {
                     always {sh "echo 'new version:' >> pipeline_log.log && cat .app_version >> pipeline_log.log"}
                     }
-                }
             }
             
             stage('Push to Dockerhub') {
@@ -109,11 +103,9 @@ pipeline {
                     }
                     }
                 post {
-                    container('builder') {
                     success {sh "echo 'New image pushed to Dockerhub repo.' >> pipeline_log.log"}
                     failure {sh "echo 'Failed to push new image to Dockerhub.' >> pipeline_log.log"}
                     }
-                }
                 }
             
             stage('Create merge request') {
@@ -135,10 +127,8 @@ pipeline {
                     }
                     }
                 post {
-                    container('builder') {
                     success {sh "echo 'Merge request created successfully.' >> pipeline_log.log"}
                     failure {sh "echo 'Failed to create merge request' >> pipeline_log.log"}
-                }
                 }
                 }
             
@@ -159,17 +149,15 @@ pipeline {
                     }
                     }
                 post {
-                    container('deployer') {
                     always {sh "echo 'Log for deployment pipeline #${BUILD_ID}' >> pipeline_log.log"}
                     success {sh "echo 'Successfully deployed version ${TAG} to cluster.' >> pipeline_log.log"}
                     failure {sh "echo 'Failed to deploy version ${TAG} to cluster.' >> pipeline_log.log"}
                     }
                 }
-                }
             }
     post {
-        container('builder') {
         always {
+            node {
             script {
                 sh 'docker kill $(docker ps -q) || true'
                 sh 'yes | docker container prune'
@@ -178,8 +166,7 @@ pipeline {
                 sh "mv pipeline_log.log ${JENKINS_HOME}/build-logs/${BUILD_ID}-pipeline_log.log"
                 LOG = readFile("${JENKINS_HOME}/build-logs/${BUILD_ID}-pipeline_log.log").trim()
                 cleanWs(deleteDirs: true)
-
-
+            }
             }
         }
         success {
@@ -189,7 +176,6 @@ pipeline {
         failure {
             slackSend(color: '#36a64f', message: 'App CI pipeline failed... Log attached.')
             slackSend(color: '#36a64f', message: "${LOG}")
-        }
         }
     }
 }
