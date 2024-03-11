@@ -19,6 +19,7 @@ pipeline {
             tty: true
         '''
     }
+    }
 
     environment {
         IMG_NAME = 'weather-app-gunicorn'
