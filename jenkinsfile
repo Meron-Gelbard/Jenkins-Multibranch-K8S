@@ -8,12 +8,12 @@ pipeline {
         spec:
           containers:
           - name: builder
-            image: jenkins/agent:latest
+            image: jenkins/agent
             command:
             - cat
             tty: true
           - name: deployer
-            image: jenkins/agent:latest
+            image: jenkins/agent
             command:
             - cat
             tty: true
