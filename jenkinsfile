@@ -12,23 +12,12 @@ pipeline {
             command:
             - cat
             tty: true
-            volumeMounts:
-            - name: docker-socket
-              mountPath: ./docker.sock
             
           - name: deployer
             image: merongelbard/jenkins-agent-docker
             command:
             - cat
             tty: true
-            volumeMounts:
-            - name: docker-socket
-              mountPath: ./docker.sock
-
-          volumes:
-          - name: docker-socket
-            hostPath:
-              path: /var/run/docker.sock
         '''
     }
 
